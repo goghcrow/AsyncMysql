@@ -5,6 +5,7 @@ class MysqlScheduler extends Scheduler {
     protected $waitingForRead = [];
 
     protected function beforeRun() {
+        // 手动开启
         $this->newTask($this->ioPollTask());
     }
 
@@ -13,17 +14,27 @@ class MysqlScheduler extends Scheduler {
             return;
         }
 
-        $links = $errors = $reject = [];
+        $links = $errors = $rejects = [];
         foreach ($this->waitingForRead as $val) {
             // $link = $val[0];
-            $links[] = $errors[] = $reject[] = $val[0];
+            $links[] = $errors[] = $rejects[] = $val[0];
         }
 
         // FIXME handle errors
-        if (!mysqli::poll($links, $errors, $reject, $sec, $usec)) {
+        if (!mysqli::poll($links, $errors, $rejects, $sec, $usec)) {
             return;
         }
 
+        // 粗暴的错误处理
+        $throws = [];
+        foreach(array_merge($errors, $rejects) as $link) {
+            $throws[] = $link->error;
+        }
+        if($throws) {
+            throw new CoMysqlException(sprintf("MySQLi Errors: %s", implode('|', $throws)));
+        }
+
+        // FIXME
         foreach ($links as $link) {
             $hash = spl_object_hash($link);
             list(, $tasks) = $this->waitingForRead[$hash];
@@ -35,7 +46,7 @@ class MysqlScheduler extends Scheduler {
         }
     }
 
-    protected function ioPollTask() {
+    public function ioPollTask() {
         if(empty($this->waitingForRead)) {
             yield;
         } else {

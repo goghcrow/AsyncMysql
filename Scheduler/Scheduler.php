@@ -6,7 +6,7 @@ class Scheduler {
     protected $taskQueue;
 
     public function __construct() {
-        $this->taskQueue = new SplQueue();
+        $this->taskQueue = new SplQueue;
     }
 
     public function newTask(Generator $coroutine) {
@@ -90,11 +90,14 @@ class Scheduler {
         );
     }
 
-    public static function syscallKillTask($tid) {
+    public static function syscallKillTask($tid, callable $callback = null) {
         return new SystemCall(
-            function(Task $task, Scheduler $scheduler) use ($tid) {
+            function(Task $task, Scheduler $scheduler) use ($tid, $callback) {
                 // echo 'killTask' . PHP_EOL;
                 if ($scheduler->killTask($tid)) {
+                    if($callback) {
+                        $callback();
+                    }
                     $scheduler->schedule($task);
                 } else {
                     throw new InvalidArgumentException('Invalid task ID!');
